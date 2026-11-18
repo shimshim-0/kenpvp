@@ -1,0 +1,1694 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>검도 대전 격투: 무사의 길 (Kendo Fighter PvP)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@600;900&family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #14110f;
+            color: #f5f0e6;
+            overflow-x: hidden;
+            user-select: none;
+        }
+        .font-serif-kr {
+            font-family: 'Noto Serif KR', serif;
+        }
+        /* 커스텀 스크롤바 및 카드 스타일 */
+        .dojo-panel {
+            background: linear-gradient(145deg, #241e1a 0%, #171310 100%);
+            border: 1px solid #4a3b31;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 235, 200, 0.1);
+        }
+        .stance-btn {
+            transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+            border: 2px solid #3d3128;
+            background: #1c1714;
+        }
+        .stance-btn:hover {
+            border-color: #b8860b;
+            transform: translateY(-2px);
+        }
+        .stance-btn.selected-p1 {
+            border-color: #3b82f6;
+            background: linear-gradient(180deg, rgba(59, 130, 246, 0.2) 0%, rgba(28, 23, 20, 0.9) 100%);
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+        }
+        .stance-btn.selected-p2 {
+            border-color: #ef4444;
+            background: linear-gradient(180deg, rgba(239, 68, 68, 0.2) 0%, rgba(28, 23, 20, 0.9) 100%);
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border-radius: 0.75rem;
+        }
+        /* 필살기 게이지 맥동 애니메이션 */
+        @keyframes kiPulse {
+            0%, 100% { box-shadow: 0 0 8px #f59e0b, inset 0 0 6px #fef3c7; }
+            50% { box-shadow: 0 0 20px #fbbf24, inset 0 0 12px #ffffff; }
+        }
+        .ki-max {
+            animation: kiPulse 1s infinite;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between p-2 sm:p-4">
+
+    <!-- 상단 헤더 & API 설정 바 -->
+    <header class="w-full max-w-6xl flex flex-wrap items-center justify-between gap-2 mb-2 px-3 py-2 rounded-xl dojo-panel">
+        <div class="flex items-center gap-3">
+            <span class="text-2xl sm:text-3xl font-serif-kr font-black text-amber-500 tracking-wider">劍道 격투 : 무사의 길</span>
+            <span class="hidden md:inline-block text-xs px-2 py-0.5 rounded bg-amber-900/50 text-amber-200 border border-amber-700/50">STREET KENDO PVP</span>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <button id="toggleApiBtn" class="text-xs sm:text-sm px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-600 text-amber-300 flex items-center gap-1.5 transition">
+                <span>🧠 AI 봇 두뇌(API) 설정</span>
+                <span id="apiStatusBadge" class="w-2 h-2 rounded-full bg-emerald-400" title="내장 전술 AI 활성"></span>
+            </button>
+            <button id="backToMenuBtn" class="hidden text-xs sm:text-sm px-3 py-1.5 rounded-lg bg-red-950 hover:bg-red-900 border border-red-700 text-red-200 transition">
+                유파/캐릭터 재선택
+            </button>
+        </div>
+    </header>
+
+    <!-- API 설정 드롭다운 패널 -->
+    <div id="apiConfigPanel" class="hidden w-full max-w-6xl mb-3 p-4 rounded-xl dojo-panel border-amber-600/50 transition-all">
+        <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div class="space-y-1 flex-1">
+                <h3 class="text-sm font-bold text-amber-400 flex items-center gap-2">
+                    <span>🤖 실시간 AI 봇 전술 엔진 (Gemini API 연동)</span>
+                </h3>
+                <p class="text-xs text-stone-300 leading-relaxed">
+                    Google Gemini API 키를 입력하면 1P 대전 시 봇이 <strong>현재 체력·거리·플레이어의 습관과 선택한 성격</strong>을 실시간으로 분석하여 전술(공격/수비/카운터/필살기 각)을 바꾸고 대사를 외칩니다.<br>
+                    <span class="text-stone-400">* API 키를 비워두면 지연 없는 <strong>고성능 내장 전술 AI</strong>가 자동으로 작동합니다.</span>
+                </p>
+            </div>
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
+                <input type="password" id="geminiApiKeyInput" placeholder="AIzaSy... (Gemini API 키 입력)" 
+                    class="px-3 py-2 text-xs rounded-lg bg-stone-950 border border-stone-700 text-stone-100 focus:outline-none focus:border-amber-500 w-full sm:w-64">
+                <button id="saveApiKeyBtn" class="px-4 py-2 text-xs font-bold rounded-lg bg-amber-600 hover:bg-amber-500 text-stone-950 transition whitespace-nowrap">
+                    적용하기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 메인 영역: 캐릭터/유파 선택 화면 -->
+    <main id="setupScreen" class="w-full max-w-6xl flex-1 flex flex-col justify-center gap-4 my-1">
+        
+        <!-- 게임 모드 선택 -->
+        <div class="dojo-panel rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+                <h2 class="text-lg font-bold text-amber-400">1. 대련 방식 선택</h2>
+                <p class="text-xs text-stone-400">AI 봇과의 수련 대련 또는 한 키보드로 즐기는 2인 진검승부를 선택하세요.</p>
+            </div>
+            <div class="flex gap-3 w-full sm:w-auto">
+                <button id="mode1PBtn" class="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-bold text-sm border-2 border-amber-500 bg-amber-500/20 text-amber-200 shadow-lg transition">
+                    🤖 1P vs AI 봇 (전술 대전)
+                </button>
+                <button id="mode2PBtn" class="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-bold text-sm border-2 border-stone-700 bg-stone-900 text-stone-400 hover:border-stone-500 transition">
+                    ⚔️ 2P 로컬 대전 (1 키보드)
+                </button>
+            </div>
+        </div>
+
+        <!-- P1 & P2 설정 그리드 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            
+            <!-- PLAYER 1 설정 -->
+            <div class="dojo-panel rounded-2xl p-5 border-t-4 border-t-blue-500 flex flex-col justify-between gap-4">
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="px-2.5 py-0.5 rounded bg-blue-600 text-white text-xs font-black tracking-wider">PLAYER 1 (청)</span>
+                        <span class="text-xs text-blue-300 font-mono">이동: WASD | 약: F | 강: G | 방어: H | 오의: R</span>
+                    </div>
+
+                    <!-- P1 자세 선택 -->
+                    <label class="block text-xs font-bold text-stone-300 mb-2">검도 자세 (유파) 선택</label>
+                    <div class="grid grid-cols-3 gap-2 mb-4" id="p1StanceGroup">
+                        <button type="button" data-stance="chudan" class="stance-btn selected-p1 p-3 rounded-xl text-left">
+                            <div class="text-sm font-black text-blue-400">중단세 (中段)</div>
+                            <div class="text-[11px] text-stone-300 mt-1">공수 밸런스형</div>
+                            <div class="text-[10px] text-stone-400 mt-0.5">안정적 거리·정석 베기</div>
+                        </button>
+                        <button type="button" data-stance="jodan" class="stance-btn p-3 rounded-xl text-left">
+                            <div class="text-sm font-black text-amber-400">상단세 (上段)</div>
+                            <div class="text-[11px] text-stone-300 mt-1">화력·리치 특화</div>
+                            <div class="text-[10px] text-stone-400 mt-0.5">강력한 내려베기·방어약화</div>
+                        </button>
+                        <button type="button" data-stance="nito" class="stance-btn p-3 rounded-xl text-left">
+                            <div class="text-sm font-black text-emerald-400">이도류 (二刀)</div>
+                            <div class="text-[11px] text-stone-300 mt-1">초고속 연타형</div>
+                            <div class="text-[10px] text-stone-400 mt-0.5">빠른 기동·근접 연속기</div>
+                        </button>
+                    </div>
+
+                    <!-- P1 성격 선택 -->
+                    <label class="block text-xs font-bold text-stone-300 mb-2">무사 성격 (기풍 & 대사)</label>
+                    <div class="grid grid-cols-2 gap-2" id="p1PersonalityGroup">
+                        <button type="button" data-pers="honorable" class="stance-btn selected-p1 p-2.5 rounded-xl text-left">
+                            <div class="text-xs font-bold text-stone-100">🛡️ 정정당당한 무사</div>
+                            <div class="text-[10px] text-stone-400">정면 승부와 예의를 중시</div>
+                        </button>
+                        <button type="button" data-pers="berserker" class="stance-btn p-2.5 rounded-xl text-left">
+                            <div class="text-xs font-bold text-stone-100">🔥 저돌적인 맹장</div>
+                            <div class="text-[10px] text-stone-400">거침없는 압박과 공격 본능</div>
+                        </button>
+                        <button type="button" data-pers="calm" class="stance-btn p-2.5 rounded-xl text-left">
+                            <div class="text-xs font-bold text-stone-100">❄️ 냉철한 달인</div>
+                            <div class="text-[10px] text-stone-400">빈틈을 노리는 카운터 전문가</div>
+                        </button>
+                        <button type="button" data-pers="cunning" class="stance-btn p-2.5 rounded-xl text-left">
+                            <div class="text-xs font-bold text-stone-100">🦊 교활한 책사</div>
+                            <div class="text-[10px] text-stone-400">거리 조절과 심리전 유도</div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PLAYER 2 / AI BOT 설정 -->
+            <div class="dojo-panel rounded-2xl p-5 border-t-4 border-t-red-500 flex flex-col justify-between gap-4">
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <span id="p2Badge" class="px-2.5 py-0.5 rounded bg-red-600 text-white text-xs font-black tracking-wider">AI BOT (홍)</span>
+                        <span id="p2ControlsHint" class="text-xs text-red-300 font-mono">AI 자동 제어 (성격에 따라 전술 변화)</span>
+                    </div>
+
+                    <!-- P2 자세 선택 -->
+                    <label class="block text-xs font-bold text-stone-300 mb-2">상대 검도 자세 (유파) 선택</label>
+                    <div class="grid grid-cols-3 gap-2 mb-4" id="p2StanceGroup">
+                        <button type="button" data-stance="chudan" class="stance-btn p-3 rounded-xl text-left">
+                            <div class="text-sm font-black text-blue-400">중단세 (中段)</div>
+                            <div class="text-[11px] text-stone-300 mt-1">공수 밸런스형</div>
+                            <div class="text-[10px] text-stone-400 mt-0.5">안정적 거리·정석 베기</div>
+                        </button>
+                        <button type="button" data-stance="jodan" class="stance-btn selected-p2 p-3 rounded-xl text-left">
+                            <div class="text-sm font-black text-amber-400">상단세 (上段)</div>
+                            <div class="text-[11px] text-stone-300 mt-1">화력·리치 특화</div>
+                            <div class="text-[10px] text-stone-400 mt-0.5">강력한 내려베기·방어약화</div>
+                        </button>
+                        <button type="button" data-stance="nito" class="stance-btn p-3 rounded-xl text-left">
+                            <div class="text-sm font-black text-emerald-400">이도류 (二刀)</div>
+                            <div class="text-[11px] text-stone-300 mt-1">초고속 연타형</div>
+                            <div class="text-[10px] text-stone-400 mt-0.5">빠른 기동·근접 연속기</div>
+                        </button>
+                    </div>
+
+                    <!-- P2 성격 선택 (AI 행동 패턴에 직접 영향!) -->
+                    <label class="block text-xs font-bold text-stone-300 mb-2">상대 성격 (AI 봇의 전술과 말투 결정)</label>
+                    <div class="grid grid-cols-2 gap-2" id="p2PersonalityGroup">
+                        <button type="button" data-pers="honorable" class="stance-btn p-2.5 rounded-xl text-left">
+                            <div class="text-xs font-bold text-stone-100">🛡️ 정정당당한 무사</div>
+                            <div class="text-[10px] text-stone-400">균형 잡힌 간격과 정공법</div>
+                        </button>
+                        <button type="button" data-pers="berserker" class="stance-btn selected-p2 p-2.5 rounded-xl text-left">
+                            <div class="text-xs font-bold text-stone-100">🔥 저돌적인 맹장</div>
+                            <div class="text-[10px] text-stone-400">쉴 새 없이 몰아치는 맹공</div>
+                        </button>
+                        <button type="button" data-pers="calm" class="stance-btn p-2.5 rounded-xl text-left">
+                            <div class="text-xs font-bold text-stone-100">❄️ 냉철한 달인</div>
+                            <div class="text-[10px] text-stone-400">방어 후 빈틈을 찌르는 반격</div>
+                        </button>
+                        <button type="button" data-pers="cunning" class="stance-btn p-2.5 rounded-xl text-left">
+                            <div class="text-xs font-bold text-stone-100">🦊 교활한 책사</div>
+                            <div class="text-[10px] text-stone-400">치고 빠지며 기력을 모으는 전술</div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 대련 시작 버튼 -->
+        <div class="flex flex-col items-center mt-1">
+            <button id="startMatchBtn" class="w-full sm:w-96 py-4 rounded-2xl font-serif-kr font-black text-xl tracking-widest bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 text-stone-950 shadow-xl hover:brightness-110 active:scale-95 transition cursor-pointer">
+                ⚔️ 진검승부 시작 (試合開始)
+            </button>
+        </div>
+    </main>
+
+    <!-- 게임 플레이 화면 (Canvas + HUD) -->
+    <section id="gameScreen" class="hidden w-full max-w-6xl flex-1 flex flex-col justify-between gap-2">
+        
+        <!-- 스트리트 파이터 스타일 상단 HUD -->
+        <div class="dojo-panel rounded-xl p-3 relative">
+            <div class="grid grid-cols-11 items-center gap-2">
+                
+                <!-- P1 체력 & 기력 -->
+                <div class="col-span-5 flex flex-col gap-1">
+                    <div class="flex justify-between items-end">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs sm:text-sm font-black text-blue-400">P1</span>
+                            <span id="hudP1Info" class="text-[11px] sm:text-xs font-bold text-stone-200">중단세 · 무사</span>
+                        </div>
+                        <div id="p1Rounds" class="flex gap-1">
+                            <span class="w-3 h-3 rounded-full border border-amber-400 bg-stone-900"></span>
+                            <span class="w-3 h-3 rounded-full border border-amber-400 bg-stone-900"></span>
+                        </div>
+                    </div>
+                    <!-- HP Bar -->
+                    <div class="w-full h-5 sm:h-6 bg-stone-950 rounded-md p-0.5 border border-stone-700 overflow-hidden relative">
+                        <div id="p1HpDamageBar" class="h-full bg-red-600 transition-all duration-300 rounded-sm absolute top-0.5 left-0.5" style="width: calc(100% - 4px);"></div>
+                        <div id="p1HpBar" class="h-full bg-gradient-to-r from-blue-600 to-cyan-400 transition-all duration-75 rounded-sm relative z-10" style="width: 100%;"></div>
+                    </div>
+                    <!-- Ki (기력) Bar -->
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-bold text-amber-400">기력</span>
+                        <div class="flex-1 h-2.5 bg-stone-950 rounded-full p-0.5 border border-stone-700">
+                            <div id="p1KiBar" class="h-full bg-gradient-to-r from-amber-600 to-yellow-300 rounded-full transition-all duration-100" style="width: 0%;"></div>
+                        </div>
+                        <span id="p1KiText" class="text-[10px] font-mono text-amber-300 w-8 text-right">0%</span>
+                    </div>
+                </div>
+
+                <!-- 중앙 타이머 & AI 상태 -->
+                <div class="col-span-1 flex flex-col items-center justify-center">
+                    <div id="roundText" class="text-[10px] font-bold text-amber-400 tracking-tighter">1회전</div>
+                    <div id="timerText" class="text-2xl sm:text-3xl font-serif-kr font-black text-white leading-none">60</div>
+                </div>
+
+                <!-- P2 체력 & 기력 -->
+                <div class="col-span-5 flex flex-col gap-1">
+                    <div class="flex justify-between items-end">
+                        <div id="p2Rounds" class="flex gap-1">
+                            <span class="w-3 h-3 rounded-full border border-amber-400 bg-stone-900"></span>
+                            <span class="w-3 h-3 rounded-full border border-amber-400 bg-stone-900"></span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span id="hudP2Info" class="text-[11px] sm:text-xs font-bold text-stone-200">상단세 · 맹장</span>
+                            <span id="hudP2Label" class="text-xs sm:text-sm font-black text-red-400">BOT</span>
+                        </div>
+                    </div>
+                    <!-- HP Bar (오른쪽 정렬) -->
+                    <div class="w-full h-5 sm:h-6 bg-stone-950 rounded-md p-0.5 border border-stone-700 overflow-hidden relative flex justify-end">
+                        <div id="p2HpDamageBar" class="h-full bg-yellow-600 transition-all duration-300 rounded-sm absolute top-0.5 right-0.5" style="width: calc(100% - 4px);"></div>
+                        <div id="p2HpBar" class="h-full bg-gradient-to-l from-red-600 to-orange-400 transition-all duration-75 rounded-sm relative z-10" style="width: 100%;"></div>
+                    </div>
+                    <!-- Ki (기력) Bar -->
+                    <div class="flex items-center gap-2">
+                        <span id="p2KiText" class="text-[10px] font-mono text-amber-300 w-8">0%</span>
+                        <div class="flex-1 h-2.5 bg-stone-950 rounded-full p-0.5 border border-stone-700 flex justify-end">
+                            <div id="p2KiBar" class="h-full bg-gradient-to-l from-amber-600 to-yellow-300 rounded-full transition-all duration-100" style="width: 0%;"></div>
+                        </div>
+                        <span class="text-[10px] font-bold text-amber-400">기력</span>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- AI 전술 상태 표시 바 (1P 모드일 때 활성) -->
+            <div id="aiBrainBar" class="mt-2 pt-1.5 border-t border-stone-800 flex items-center justify-between text-xs">
+                <div class="flex items-center gap-2">
+                    <span class="px-1.5 py-0.5 rounded bg-amber-950 border border-amber-700 text-amber-300 text-[10px] font-bold">AI 전술 상태</span>
+                    <span id="aiTacticLabel" class="font-bold text-stone-200">관찰 및 거리 조절 중...</span>
+                </div>
+                <div id="aiEngineSource" class="text-[10px] text-stone-400">엔진: 내장 전술 알고리즘</div>
+            </div>
+        </div>
+
+        <!-- 캔버스 컨테이너 -->
+        <div id="canvasWrapper" class="relative w-full h-[380px] sm:h-[460px] dojo-panel rounded-xl overflow-hidden border-2 border-stone-700">
+            <canvas id="gameCanvas"></canvas>
+
+            <!-- 라운드 종료 / 승리 오버레이 메시지 박스 -->
+            <div id="matchOverlay" class="hidden absolute inset-0 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-20">
+                <div id="overlaySubtitle" class="text-sm font-bold text-amber-400 tracking-widest mb-1">승부 결정</div>
+                <h2 id="overlayTitle" class="text-3xl sm:text-5xl font-serif-kr font-black text-white mb-4">PLAYER 1 승리!</h2>
+                <p id="overlayDesc" class="text-sm text-stone-300 max-w-md mb-6">훌륭한 검술이었습니다.</p>
+                <div class="flex gap-3">
+                    <button id="rematchBtn" class="px-6 py-3 rounded-xl font-bold bg-amber-500 hover:bg-amber-400 text-stone-950 transition cursor-pointer">
+                        🔄 다시 대련하기
+                    </button>
+                    <button id="overlayMenuBtn" class="px-6 py-3 rounded-xl font-bold bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-600 transition cursor-pointer">
+                        유파 변경
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 하단 조작법 안내 & 모바일/터치 보조 버튼 -->
+        <div class="dojo-panel rounded-xl p-3 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-stone-300">
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+                <span class="font-bold text-blue-400">[1P 조작]</span>
+                <span>이동: <kbd class="px-1.5 py-0.5 bg-stone-800 rounded border border-stone-600">A</kbd> <kbd class="px-1.5 py-0.5 bg-stone-800 rounded border border-stone-600">D</kbd></span>
+                <span>돌진/스텝: <kbd class="px-1.5 py-0.5 bg-stone-800 rounded border border-stone-600">W</kbd></span>
+                <span>약베기(손목): <kbd class="px-1.5 py-0.5 bg-stone-800 rounded border border-stone-600">F</kbd></span>
+                <span>강베기(머리): <kbd class="px-1.5 py-0.5 bg-stone-800 rounded border border-stone-600">G</kbd></span>
+                <span>방어: <kbd class="px-1.5 py-0.5 bg-stone-800 rounded border border-stone-600">H</kbd></span>
+                <span class="text-amber-300 font-bold">오의(기력100%): <kbd class="px-1.5 py-0.5 bg-amber-950 text-amber-200 rounded border border-amber-600">R</kbd></span>
+            </div>
+            <div id="p2FooterControls" class="hidden flex-wrap items-center gap-x-4 gap-y-1">
+                <span class="font-bold text-red-400">[2P 조작]</span>
+                <span>이동: <kbd class="px-1.5 py-0.5 bg-stone-800 rounded border border-stone-600">←</kbd> <kbd class="px-1.5 py-0.5 bg-stone-800 rounded border border-stone-600">→</kbd></span>
+                <span>스텝: <kbd class="px-1.5 py-0.5 bg-stone-800 rounded border border-stone-600">↑</kbd></span>
+                <span>약: <kbd class="px-1.5 py-0.5 bg-stone-800 rounded border border-stone-600">J</kbd></span>
+                <span>강: <kbd class="px-1.5 py-0.5 bg-stone-800 rounded border border-stone-600">K</kbd></span>
+                <span>방어: <kbd class="px-1.5 py-0.5 bg-stone-800 rounded border border-stone-600">L</kbd></span>
+                <span class="text-amber-300 font-bold">오의: <kbd class="px-1.5 py-0.5 bg-amber-950 text-amber-200 rounded border border-amber-600">I</kbd></span>
+            </div>
+        </div>
+    </section>
+
+    <script>
+        /**
+         * ============================================================================
+         * 1. 게임 데이터 정의 (검도 자세/유파 및 캐릭터 성격)
+         * ============================================================================
+         */
+        const STANCES = {
+            chudan: {
+                id: 'chudan',
+                name: '중단세',
+                fullName: '중단세 (正眼)',
+                speed: 4.5,
+                dashSpeed: 12,
+                guardEfficiency: 0.80, // 방어 시 80% 피해 감소
+                light: { name: '손목 치기!', damage: 8, range: 115, startup: 7, active: 6, recovery: 12, kiGain: 14 },
+                heavy: { name: '정면 머리!', damage: 18, range: 135, startup: 15, active: 8, recovery: 22, kiGain: 24 },
+                special: { name: '비기 · 일섬 찌르기!', damage: 36, range: 210, startup: 12, active: 10, recovery: 24, dashVel: 18 }
+            },
+            jodan: {
+                id: 'jodan',
+                name: '상단세',
+                fullName: '상단세 (火의 構)',
+                speed: 4.0,
+                dashSpeed: 11,
+                guardEfficiency: 0.45, // 상단세는 방어력이 낮은 대신 공격력/리치 극대화
+                light: { name: '견제 베기!', damage: 11, range: 130, startup: 9, active: 7, recovery: 15, kiGain: 15 },
+                heavy: { name: '파쇄 내려베기!', damage: 25, range: 155, startup: 18, active: 9, recovery: 26, kiGain: 28 },
+                special: { name: '오의 · 천지양단!', damage: 45, range: 195, startup: 16, active: 12, recovery: 28, dashVel: 14 }
+            },
+            nito: {
+                id: 'nito',
+                name: '이도류',
+                fullName: '이도류 (二天一流)',
+                speed: 5.6,
+                dashSpeed: 15,
+                guardEfficiency: 0.70,
+                light: { name: '소태도 연격!', damage: 7, range: 95, startup: 4, active: 5, recovery: 8, kiGain: 12 },
+                heavy: { name: '쌍검 교차 베기!', damage: 16, range: 112, startup: 11, active: 8, recovery: 16, kiGain: 22 },
+                special: { name: '비전 · 쌍룡난무!', damage: 38, range: 165, startup: 9, active: 16, recovery: 22, dashVel: 20 }
+            }
+        };
+
+        const PERSONALITIES = {
+            honorable: {
+                id: 'honorable',
+                name: '정정당당한 무사',
+                shortName: '무사',
+                aggression: 0.52,
+                guardTendency: 0.45,
+                preferredDist: 125,
+                quotes: {
+                    start: ['정정당당히 겨루어 봅시다!', '예로 시작해 예로 끝맺겠습니다.'],
+                    attack: ['한 판!', '정면 승부다!', '빈틈이 보였소!'],
+                    hurt: ['훌륭한 일격이오!', '아직 끝나지 않았소!'],
+                    special: ['혼신을 담은 일격, 받아보시오!'],
+                    win: ['좋은 대련이었습니다. 감사합니다.']
+                }
+            },
+            berserker: {
+                id: 'berserker',
+                name: '저돌적인 맹장',
+                shortName: '맹장',
+                aggression: 0.85,
+                guardTendency: 0.15,
+                preferredDist: 95,
+                quotes: {
+                    start: ['크하하! 뼈까지 베어주마!', '방어 따윈 필요 없다, 덤벼라!'],
+                    attack: ['부서져라!', '머리다!!', '피하지 마라!'],
+                    hurt: ['겨우 그 정도냐?!', '피가 끓어오른다!'],
+                    special: ['전부 박살 내주마!!'],
+                    win: ['하하하! 내 검을 막을 자는 없다!']
+                }
+            },
+            calm: {
+                id: 'calm',
+                name: '냉철한 달인',
+                shortName: '달인',
+                aggression: 0.35,
+                guardTendency: 0.75,
+                preferredDist: 145,
+                quotes: {
+                    start: ['마음이 흔들리면 검도 흔들리는 법.', '네 호흡은 이미 읽혔다.'],
+                    attack: ['거기다.', '너무 얕구나.', '빈틈투성이군.'],
+                    hurt: ['흥미롭군...', '방심은 금물이로군.'],
+                    special: ['찰나의 틈, 놓치지 않는다.'],
+                    win: ['예상대로의 결과군. 수련을 거듭해라.']
+                }
+            },
+            cunning: {
+                id: 'cunning',
+                name: '교활한 책사',
+                shortName: '책사',
+                aggression: 0.55,
+                guardTendency: 0.55,
+                preferredDist: 155,
+                quotes: {
+                    start: ['후후, 내 수에 말려들지 않도록 조심해.', '힘만으로는 이길 수 없지.'],
+                    attack: ['걸려들었군!', '여기라 생각했나?', '허를 찔렀지!'],
+                    hurt: ['칫, 계산 외인데?', '잠깐 물러나야겠군.'],
+                    special: ['체크메이트다! 잘 가라고!'],
+                    win: ['전부 내 시나리오대로였어. 후후.']
+                }
+            }
+        };
+
+        /**
+         * ============================================================================
+         * 2. Web Audio API 효과음 합성기 (외부 파일 없이 맑고 타격감 있는 죽도 소리 생성)
+         * ============================================================================
+         */
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+            }
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+            playSwing(isHeavy = false) {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                const now = this.ctx.currentTime;
+                osc.frequency.setValueAtTime(isHeavy ? 220 : 340, now);
+                osc.frequency.exponentialRampToValueAtTime(60, now + (isHeavy ? 0.18 : 0.11));
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + (isHeavy ? 0.18 : 0.11));
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + (isHeavy ? 0.18 : 0.11));
+            }
+            playHit(isHeavy = false) {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                // 죽도 타격음 (맑고 단단한 대나무 파열음)
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(isHeavy ? 180 : 280, now);
+                osc.frequency.exponentialRampToValueAtTime(45, now + 0.14);
+                gain.gain.setValueAtTime(isHeavy ? 0.45 : 0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.14);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.14);
+            }
+            playGuard() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(520, now);
+                osc.frequency.exponentialRampToValueAtTime(190, now + 0.1);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            }
+            playSpecial() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(780, now + 0.25);
+                gain.gain.setValueAtTime(0.35, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            }
+        }
+        const sfx = new SoundFX();
+
+        /**
+         * ============================================================================
+         * 3. 검도 선수(Fighter) 클래스
+         * ============================================================================
+         */
+        class Fighter {
+            constructor({ isPlayer1, x, stanceKey, personalityKey, colorPrimary, colorAccent }) {
+                this.isPlayer1 = isPlayer1;
+                this.x = x;
+                this.y = 0; // 바닥 기준 오프셋
+                this.vx = 0;
+                this.facing = isPlayer1 ? 1 : -1;
+
+                this.stance = STANCES[stanceKey];
+                this.personality = PERSONALITIES[personalityKey];
+                this.colorPrimary = colorPrimary;
+                this.colorAccent = colorAccent;
+
+                this.maxHp = 100;
+                this.hp = 100;
+                this.ki = 0; // 0 ~ 100
+                this.roundsWon = 0;
+
+                // 상태 머신: 'idle', 'walk', 'dash', 'guard', 'attack', 'hurt', 'ko'
+                this.state = 'idle';
+                this.stateTimer = 0;
+                this.currentAttack = null;
+                this.attackType = null; // 'light', 'heavy', 'special'
+                this.hasDealtDamage = false;
+
+                // 시각 효과 및 대사
+                this.speechText = '';
+                this.speechTimer = 0;
+                this.animFrame = 0;
+                this.flashTimer = 0;
+
+                // AI 분석용 플레이어 습관 기록
+                this.stats = {
+                    lightUsed: 0,
+                    heavyUsed: 0,
+                    guardUsed: 0,
+                    dashUsed: 0
+                };
+            }
+
+            resetForRound(x) {
+                this.x = x;
+                this.vx = 0;
+                this.hp = this.maxHp;
+                this.state = 'idle';
+                this.stateTimer = 0;
+                this.currentAttack = null;
+                this.hasDealtDamage = false;
+                this.say(this.getRandomQuote('start'), 140);
+            }
+
+            getRandomQuote(category) {
+                const list = this.personality.quotes[category] || ['...'];
+                return list[Math.floor(Math.random() * list.length)];
+            }
+
+            say(text, duration = 120) {
+                if (!text) return;
+                this.speechText = text;
+                this.speechTimer = duration;
+            }
+
+            canAct() {
+                return this.state === 'idle' || this.state === 'walk' || this.state === 'guard';
+            }
+
+            startDash(dir) {
+                if (!this.canAct()) return;
+                this.state = 'dash';
+                this.stateTimer = 12;
+                this.vx = dir * this.stance.dashSpeed;
+                this.stats.dashUsed++;
+                sfx.playSwing(false);
+            }
+
+            startAttack(type) {
+                if (!this.canAct()) return;
+                if (type === 'special' && this.ki < 100) return;
+
+                const atkData = this.stance[type];
+                this.state = 'attack';
+                this.attackType = type;
+                this.currentAttack = atkData;
+                this.stateTimer = atkData.startup + atkData.active + atkData.recovery;
+                this.hasDealtDamage = false;
+
+                if (type === 'special') {
+                    this.ki = 0;
+                    this.vx = this.facing * (atkData.dashVel || 14);
+                    this.say(this.getRandomQuote('special'), 110);
+                    sfx.playSpecial();
+                } else {
+                    if (type === 'light') this.stats.lightUsed++;
+                    if (type === 'heavy') this.stats.heavyUsed++;
+                    if (Math.random() < 0.35) {
+                        this.say(this.getRandomQuote('attack'), 70);
+                    }
+                    sfx.playSwing(type === 'heavy');
+                }
+            }
+
+            setGuard(isGuarding) {
+                if (this.state === 'attack' || this.state === 'hurt' || this.state === 'dash' || this.state === 'ko') return;
+                if (isGuarding) {
+                    if (this.state !== 'guard') this.stats.guardUsed++;
+                    this.state = 'guard';
+                    this.vx = 0;
+                } else if (this.state === 'guard') {
+                    this.state = 'idle';
+                }
+            }
+
+            takeDamage(amount, attacker, attackType) {
+                if (this.state === 'ko') return { blocked: false, dmg: 0 };
+
+                // 방어 판정 (상대를 바라보고 있고 방어 자세일 때)
+                const isFacingAttacker = (attacker.x < this.x && this.facing === -1) || (attacker.x > this.x && this.facing === 1);
+                if (this.state === 'guard' && isFacingAttacker && attackType !== 'special') {
+                    const reduced = Math.max(2, Math.round(amount * (1 - this.stance.guardEfficiency)));
+                    this.hp = Math.max(0, this.hp - reduced);
+                    this.vx = -this.facing * 5;
+                    this.ki = Math.min(100, this.ki + 8);
+                    sfx.playGuard();
+                    if (this.hp <= 0) this.setKO();
+                    return { blocked: true, dmg: reduced };
+                }
+
+                // 피격 판정
+                this.hp = Math.max(0, this.hp - amount);
+                this.ki = Math.min(100, this.ki + Math.round(amount * 0.6));
+                this.flashTimer = 8;
+                this.vx = -this.facing * (attackType === 'heavy' || attackType === 'special' ? 10 : 5);
+                sfx.playHit(attackType === 'heavy' || attackType === 'special');
+
+                if (this.hp <= 0) {
+                    this.setKO();
+                } else {
+                    this.state = 'hurt';
+                    this.stateTimer = attackType === 'heavy' ? 18 : 11;
+                    if (Math.random() < 0.4) {
+                        this.say(this.getRandomQuote('hurt'), 80);
+                    }
+                }
+                return { blocked: false, dmg: amount };
+            }
+
+            setKO() {
+                this.hp = 0;
+                this.state = 'ko';
+                this.stateTimer = 999;
+            }
+
+            update(opponent, stageWidth) {
+                this.animFrame++;
+                if (this.speechTimer > 0) this.speechTimer--;
+                if (this.flashTimer > 0) this.flashTimer--;
+
+                // 자동 상대 방향 주시 (공격/피격/대시 중이 아닐 때)
+                if (this.canAct() && opponent.state !== 'ko') {
+                    this.facing = opponent.x >= this.x ? 1 : -1;
+                }
+
+                // 상태 타이머 감소
+                if (this.stateTimer > 0 && this.state !== 'ko') {
+                    this.stateTimer--;
+                    if (this.stateTimer <= 0) {
+                        this.state = 'idle';
+                        this.currentAttack = null;
+                        this.attackType = null;
+                    }
+                }
+
+                // 물리 이동 및 마찰력
+                this.x += this.vx;
+                this.vx *= 0.82;
+
+                // 경기장 벽 제한
+                const margin = 70;
+                if (this.x < margin) this.x = margin;
+                if (this.x > stageWidth - margin) this.x = stageWidth - margin;
+
+                // 캐릭터 간 겹침 방지 (밀어내기)
+                const minSep = 54;
+                const dist = Math.abs(this.x - opponent.x);
+                if (dist < minSep && this.state !== 'dash' && opponent.state !== 'dash') {
+                    const push = (minSep - dist) * 0.5;
+                    if (this.x < opponent.x) {
+                        this.x -= push;
+                        opponent.x += push;
+                    } else {
+                        this.x += push;
+                        opponent.x -= push;
+                    }
+                }
+            }
+
+            // 현재 프레임이 공격 판정 활성 구간인지 확인
+            isAttackActive() {
+                if (this.state !== 'attack' || !this.currentAttack || this.hasDealtDamage) return false;
+                const total = this.currentAttack.startup + this.currentAttack.active + this.currentAttack.recovery;
+                const elapsed = total - this.stateTimer;
+                return elapsed >= this.currentAttack.startup && elapsed <= (this.currentAttack.startup + this.currentAttack.active);
+            }
+        }
+
+        /**
+         * ============================================================================
+         * 4. 하이브리드 AI 봇 컨트롤러 (실시간 전투 엔진 + Gemini API 전술 두뇌)
+         * ============================================================================
+         */
+        class KendoBotAI {
+            constructor() {
+                this.apiKey = '';
+                this.tacticalMode = 'BALANCED'; // 'AGGRESSIVE', 'DEFENSIVE', 'COUNTER', 'SPECIAL_HUNT'
+                this.lastApiCallTime = 0;
+                this.isFetching = false;
+                this.decisionTimer = 0;
+                this.desiredMove = 0; // -1, 0, 1
+            }
+
+            setApiKey(key) {
+                this.apiKey = key.trim();
+            }
+
+            // 3초마다 Gemini API를 호출하여 상위 전술 및 대사 업데이트
+            async updateStrategyFromAPI(bot, player, roundTime) {
+                if (!this.apiKey || this.isFetching) return;
+                const now = Date.now();
+                if (now - this.lastApiCallTime < 3200) return;
+
+                this.lastApiCallTime = now;
+                this.isFetching = true;
+
+                const dist = Math.round(Math.abs(bot.x - player.x));
+                const prompt = `당신은 2D 검도 대전 게임의 AI 봇입니다.
+당신의 유파: ${bot.stance.fullName}, 성격: ${bot.personality.name}
+현재 체력: ${bot.hp}/100, 기력: ${bot.ki}/100
+상대 유파: ${player.stance.fullName}, 상대 체력: ${player.hp}/100, 상대 기력: ${player.ki}/100
+현재 거리: ${dist}px (근접 공격 사거리 약 120px), 남은 시간: ${roundTime}초
+상대 행동 통계: 약공격 ${player.stats.lightUsed}회, 강공격 ${player.stats.heavyUsed}회, 방어 ${player.stats.guardUsed}회
+
+당신의 성격에 맞춰 다음 전술 모드 중 하나를 고르고, 짧은 한국어 기합/도발 대사(15자 이내)를 JSON으로만 응답하세요.
+전술 모드 선택지: "AGGRESSIVE" (맹공), "DEFENSIVE" (수비/거리유지), "COUNTER" (카운터 대기), "SPECIAL_HUNT" (필살기 각 노리기)
+응답 형식: {"mode": "AGGRESSIVE", "taunt": "빈틈이 보인다!"}`;
+
+                try {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(this.apiKey)}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: prompt }] }],
+                            generationConfig: {
+                                temperature: 0.7,
+                                maxOutputTokens: 100,
+                                responseMimeType: 'application/json'
+                            }
+                        })
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                        if (rawText) {
+                            const parsed = JSON.parse(rawText);
+                            if (parsed.mode) this.tacticalMode = parsed.mode;
+                            if (parsed.taunt) bot.say(parsed.taunt, 150);
+                            this.updateHudLabel(bot, true);
+                        }
+                    }
+                } catch (err) {
+                    // API 오류 시 조용히 내장 AI 로직 유지
+                    console.warn('Gemini API 전술 호출 폴백:', err);
+                } finally {
+                    this.isFetching = false;
+                }
+            }
+
+            // API 키가 없을 때 작동하는 내장 전술 판단기
+            updateBuiltInStrategy(bot, player) {
+                const p = bot.personality;
+                if (bot.ki >= 100) {
+                    this.tacticalMode = 'SPECIAL_HUNT';
+                } else if (bot.hp < 30 && p.id !== 'berserker') {
+                    this.tacticalMode = 'DEFENSIVE';
+                } else if (player.state === 'attack' && p.guardTendency > 0.5) {
+                    this.tacticalMode = 'COUNTER';
+                } else if (p.aggression > 0.7) {
+                    this.tacticalMode = 'AGGRESSIVE';
+                } else {
+                    this.tacticalMode = 'BALANCED';
+                }
+                this.updateHudLabel(bot, false);
+            }
+
+            updateHudLabel(bot, isApi) {
+                const modeNames = {
+                    AGGRESSIVE: '🔥 맹공 압박 (전진 베기)',
+                    DEFENSIVE: '🛡️ 신중한 수비 및 간격 유지',
+                    COUNTER: '⚡ 빈틈 포착 및 카운터 대기',
+                    SPECIAL_HUNT: '🐉 오의(필살기) 발동 기회 포착!',
+                    BALANCED: '⚖️ 유파 정석 거리 조절'
+                };
+                const labelEl = document.getElementById('aiTacticLabel');
+                const srcEl = document.getElementById('aiEngineSource');
+                if (labelEl) labelEl.textContent = `[${bot.personality.shortName}] ${modeNames[this.tacticalMode] || '전투 중'}`;
+                if (srcEl) srcEl.textContent = isApi ? '엔진: Gemini API 실시간 두뇌 🧠' : '엔진: 내장 전술 알고리즘 ⚡';
+            }
+
+            // 매 프레임(60fps) 실시간 반응 및 실행
+            thinkAndAct(bot, player, roundTime) {
+                if (bot.state === 'ko' || player.state === 'ko') return;
+
+                if (this.apiKey) {
+                    this.updateStrategyFromAPI(bot, player, roundTime);
+                } else {
+                    this.updateBuiltInStrategy(bot, player);
+                }
+
+                const dist = Math.abs(bot.x - player.x);
+                const dirToPlayer = player.x >= bot.x ? 1 : -1;
+                const reach = bot.stance.heavy.range;
+
+                // 1. 필살기 각이 나오면 즉시 발동
+                if (bot.ki >= 100 && dist <= bot.stance.special.range - 15 && bot.canAct()) {
+                    bot.setGuard(false);
+                    bot.startAttack('special');
+                    return;
+                }
+
+                // 2. 상대가 공격 중일 때 반응 (성격 및 전술 모드 반영)
+                if (player.state === 'attack' && dist <= player.currentAttack.range + 20) {
+                    const guardRoll = Math.random();
+                    let guardChance = bot.personality.guardTendency;
+                    if (this.tacticalMode === 'DEFENSIVE' || this.tacticalMode === 'COUNTER') guardChance += 0.3;
+                    if (this.tacticalMode === 'AGGRESSIVE') guardChance -= 0.25;
+
+                    if (guardRoll < guardChance * 0.25 && bot.canAct()) {
+                        bot.setGuard(true);
+                        return;
+                    } else if (guardRoll < 0.08 && bot.canAct()) {
+                        // 백스텝 회피
+                        bot.startDash(-dirToPlayer);
+                        return;
+                    }
+                }
+
+                // 3. 주기적 이동/공격 의사결정
+                this.decisionTimer--;
+                if (this.decisionTimer <= 0) {
+                    this.decisionTimer = 10 + Math.floor(Math.random() * 10);
+                    bot.setGuard(false);
+
+                    let preferredDist = bot.personality.preferredDist;
+                    if (this.tacticalMode === 'AGGRESSIVE' || this.tacticalMode === 'SPECIAL_HUNT') preferredDist = 85;
+                    if (this.tacticalMode === 'DEFENSIVE') preferredDist = 175;
+
+                    // 사거리 내 공격 판단
+                    if (dist <= reach) {
+                        const atkRoll = Math.random();
+                        const aggro = this.tacticalMode === 'AGGRESSIVE' ? 0.85 : bot.personality.aggression;
+
+                        if (atkRoll < aggro) {
+                            // 이도류는 약공격 선호, 상단세는 강공격 선호
+                            if (bot.stance.id === 'nito') {
+                                bot.startAttack(Math.random() < 0.7 ? 'light' : 'heavy');
+                            } else if (bot.stance.id === 'jodan') {
+                                bot.startAttack(Math.random() < 0.65 ? 'heavy' : 'light');
+                            } else {
+                                bot.startAttack(Math.random() < 0.55 ? 'light' : 'heavy');
+                            }
+                            this.desiredMove = 0;
+                            return;
+                        } else if (this.tacticalMode === 'DEFENSIVE' || this.tacticalMode === 'COUNTER') {
+                            bot.setGuard(true);
+                            this.desiredMove = 0;
+                            return;
+                        }
+                    }
+
+                    // 거리 조절 이동
+                    if (dist > preferredDist + 20) {
+                        this.desiredMove = dirToPlayer;
+                        if (dist > 280 && Math.random() < 0.25) {
+                            bot.startDash(dirToPlayer);
+                        }
+                    } else if (dist < preferredDist - 25) {
+                        this.desiredMove = -dirToPlayer;
+                    } else {
+                        this.desiredMove = 0;
+                    }
+                }
+
+                // 이동 적용
+                if (bot.canAct() && bot.state !== 'guard' && this.desiredMove !== 0) {
+                    bot.state = 'walk';
+                    bot.vx = this.desiredMove * bot.stance.speed;
+                } else if (bot.state === 'walk' && this.desiredMove === 0) {
+                    bot.state = 'idle';
+                }
+            }
+        }
+
+        /**
+         * ============================================================================
+         * 5. 메인 게임 엔진 & 캔버스 렌더링 (도장 배경 + 검도 호구 + 죽도 궤적 + 타격 이펙트)
+         * ============================================================================
+         */
+        class KendoGame {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.botAI = new KendoBotAI();
+
+                this.is2PMode = false;
+                this.p1Stance = 'chudan';
+                this.p1Personality = 'honorable';
+                this.p2Stance = 'jodan';
+                this.p2Personality = 'berserker';
+
+                this.p1 = null;
+                this.p2 = null;
+                this.keys = {};
+
+                this.round = 1;
+                this.roundTime = 60;
+                this.frameCounter = 0;
+                this.hitstop = 0; // 역경직 프레임
+                this.screenShake = 0;
+                this.isRoundOver = false;
+                this.isMatchOver = false;
+                this.gameLoopId = null;
+
+                this.particles = [];
+                this.floatingTexts = [];
+                this.slashTrails = [];
+
+                this.bindEvents();
+                this.resizeCanvas();
+            }
+
+            resizeCanvas() {
+                const wrapper = document.getElementById('canvasWrapper');
+                if (!wrapper) return;
+                this.canvas.width = wrapper.clientWidth || 960;
+                this.canvas.height = wrapper.clientHeight || 440;
+            }
+
+            bindEvents() {
+                window.addEventListener('resize', () => this.resizeCanvas());
+
+                window.addEventListener('keydown', (e) => {
+                    const code = e.code;
+                    this.keys[code] = true;
+
+                    if (!this.p1 || !this.p2 || this.isRoundOver) return;
+
+                    // P1 단발 입력 (공격/대시)
+                    if (code === 'KeyW') this.p1.startDash(this.keys['KeyA'] ? -1 : 1);
+                    if (code === 'KeyF') this.p1.startAttack('light');
+                    if (code === 'KeyG') this.p1.startAttack('heavy');
+                    if (code === 'KeyR') this.p1.startAttack('special');
+
+                    // P2 단발 입력 (2P 모드일 때만)
+                    if (this.is2PMode) {
+                        if (code === 'ArrowUp') this.p2.startDash(this.keys['ArrowRight'] ? 1 : -1);
+                        if (code === 'KeyJ') this.p2.startAttack('light');
+                        if (code === 'KeyK') this.p2.startAttack('heavy');
+                        if (code === 'KeyI') this.p2.startAttack('special');
+                    }
+                });
+
+                window.addEventListener('keyup', (e) => {
+                    this.keys[e.code] = false;
+                });
+            }
+
+            startMatch() {
+                sfx.init();
+                this.resizeCanvas();
+
+                this.round = 1;
+                this.isMatchOver = false;
+                this.particles = [];
+                this.floatingTexts = [];
+                this.slashTrails = [];
+
+                this.p1 = new Fighter({
+                    isPlayer1: true,
+                    x: this.canvas.width * 0.28,
+                    stanceKey: this.p1Stance,
+                    personalityKey: this.p1Personality,
+                    colorPrimary: '#2563eb',
+                    colorAccent: '#60a5fa'
+                });
+
+                this.p2 = new Fighter({
+                    isPlayer1: false,
+                    x: this.canvas.width * 0.72,
+                    stanceKey: this.p2Stance,
+                    personalityKey: this.p2Personality,
+                    colorPrimary: '#dc2626',
+                    colorAccent: '#f87171'
+                });
+
+                // HUD 텍스트 세팅
+                document.getElementById('hudP1Info').textContent = `${this.p1.stance.name} · ${this.p1.personality.shortName}`;
+                document.getElementById('hudP2Info').textContent = `${this.p2.stance.name} · ${this.p2.personality.shortName}`;
+                document.getElementById('hudP2Label').textContent = this.is2PMode ? 'P2' : 'BOT';
+                document.getElementById('aiBrainBar').classList.toggle('hidden', this.is2PMode);
+                document.getElementById('p2FooterControls').classList.toggle('hidden', !this.is2PMode);
+                document.getElementById('p2FooterControls').classList.toggle('flex', this.is2PMode);
+
+                this.startRound();
+
+                if (this.gameLoopId) cancelAnimationFrame(this.gameLoopId);
+                this.loop();
+            }
+
+            startRound() {
+                this.isRoundOver = false;
+                this.roundTime = 60;
+                this.frameCounter = 0;
+                this.p1.resetForRound(this.canvas.width * 0.28);
+                this.p2.resetForRound(this.canvas.width * 0.72);
+                document.getElementById('matchOverlay').classList.add('hidden');
+                document.getElementById('roundText').textContent = `${this.round}회전`;
+                this.spawnFloatingText(this.canvas.width / 2, this.canvas.height * 0.4, `제 ${this.round} 회전 - 시작!`, '#fbbf24', 32);
+                this.updateHUD();
+            }
+
+            handlePlayerInputs() {
+                // P1 지속 입력 (이동 & 방어)
+                if (this.keys['KeyH']) {
+                    this.p1.setGuard(true);
+                } else {
+                    this.p1.setGuard(false);
+                    if (this.p1.canAct()) {
+                        if (this.keys['KeyA']) {
+                            this.p1.state = 'walk';
+                            this.p1.vx = -this.p1.stance.speed;
+                        } else if (this.keys['KeyD']) {
+                            this.p1.state = 'walk';
+                            this.p1.vx = this.p1.stance.speed;
+                        } else if (this.p1.state === 'walk') {
+                            this.p1.state = 'idle';
+                        }
+                    }
+                }
+
+                // P2 입력 (2P 모드 vs AI 봇 모드)
+                if (this.is2PMode) {
+                    if (this.keys['KeyL']) {
+                        this.p2.setGuard(true);
+                    } else {
+                        this.p2.setGuard(false);
+                        if (this.p2.canAct()) {
+                            if (this.keys['ArrowLeft']) {
+                                this.p2.state = 'walk';
+                                this.p2.vx = -this.p2.stance.speed;
+                            } else if (this.keys['ArrowRight']) {
+                                this.p2.state = 'walk';
+                                this.p2.vx = this.p2.stance.speed;
+                            } else if (this.p2.state === 'walk') {
+                                this.p2.state = 'idle';
+                            }
+                        }
+                    }
+                } else {
+                    this.botAI.thinkAndAct(this.p2, this.p1, this.roundTime);
+                }
+            }
+
+            checkCombatCollisions() {
+                this.processAttackHit(this.p1, this.p2);
+                this.processAttackHit(this.p2, this.p1);
+            }
+
+            processAttackHit(attacker, defender) {
+                if (!attacker.isAttackActive()) return;
+
+                const dist = Math.abs(attacker.x - defender.x);
+                const isFacing = (attacker.x <= defender.x && attacker.facing === 1) || (attacker.x >= defender.x && attacker.facing === -1);
+
+                if (isFacing && dist <= attacker.currentAttack.range) {
+                    attacker.hasDealtDamage = true;
+
+                    // 기력 획득 (일반 공격 적중 시)
+                    if (attacker.attackType !== 'special') {
+                        attacker.ki = Math.min(100, attacker.ki + attacker.currentAttack.kiGain);
+                    }
+
+                    const result = defender.takeDamage(attacker.currentAttack.damage, attacker, attacker.attackType);
+                    const hitX = (attacker.x + defender.x) / 2;
+                    const hitY = this.canvas.height - 155;
+
+                    // 타격감: 역경직(Hitstop) & 화면 흔들림 & 파티클
+                    this.hitstop = attacker.attackType === 'special' ? 9 : (attacker.attackType === 'heavy' ? 6 : 3);
+                    this.screenShake = attacker.attackType === 'special' ? 14 : (attacker.attackType === 'heavy' ? 8 : 4);
+
+                    if (result.blocked) {
+                        this.spawnParticles(hitX, hitY, '#60a5fa', 12);
+                        this.spawnFloatingText(defender.x, hitY - 40, `방어! (-${result.dmg})`, '#93c5fd', 20);
+                    } else {
+                        const sparkColor = attacker.attackType === 'special' ? '#fbbf24' : '#ef4444';
+                        this.spawnParticles(hitX, hitY, sparkColor, attacker.attackType === 'special' ? 28 : 16);
+                        this.spawnFloatingText(defender.x, hitY - 45, `${attacker.currentAttack.name} -${result.dmg}`, sparkColor, attacker.attackType === 'special' ? 28 : 22);
+                    }
+                }
+            }
+
+            spawnParticles(x, y, color, count) {
+                for (let i = 0; i < count; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = 2 + Math.random() * 8;
+                    this.particles.push({
+                        x, y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed - 2,
+                        life: 18 + Math.random() * 14,
+                        maxLife: 32,
+                        color,
+                        size: 2 + Math.random() * 4
+                    });
+                }
+            }
+
+            spawnFloatingText(x, y, text, color, size = 22) {
+                this.floatingTexts.push({
+                    x, y, text, color, size,
+                    life: 55
+                });
+            }
+
+            checkRoundEnd() {
+                if (this.isRoundOver) return;
+
+                let winner = null;
+                let reason = '';
+
+                if (this.p1.hp <= 0 && this.p2.hp <= 0) {
+                    reason = '동시 타격! 무승부';
+                } else if (this.p2.hp <= 0) {
+                    winner = this.p1;
+                    reason = `${this.p1.stance.name}의 완벽한 한판 승부!`;
+                } else if (this.p1.hp <= 0) {
+                    winner = this.p2;
+                    reason = `${this.p2.stance.name}의 날카로운 일격에 쓰러졌습니다.`;
+                } else if (this.roundTime <= 0) {
+                    if (this.p1.hp > this.p2.hp) {
+                        winner = this.p1;
+                        reason = '시간 종료 판정승!';
+                    } else if (this.p2.hp > this.p1.hp) {
+                        winner = this.p2;
+                        reason = '시간 종료 판정승!';
+                    } else {
+                        reason = '시간 종료 무승부!';
+                    }
+                } else {
+                    return;
+                }
+
+                this.isRoundOver = true;
+                if (winner) {
+                    winner.roundsWon++;
+                    winner.say(winner.getRandomQuote('win'), 180);
+                }
+                this.updateHUD();
+
+                // 3판 2선승제 체크
+                if (this.p1.roundsWon >= 2 || this.p2.roundsWon >= 2) {
+                    this.isMatchOver = true;
+                    const champName = this.p1.roundsWon >= 2 ? 'PLAYER 1 (청)' : (this.is2PMode ? 'PLAYER 2 (홍)' : `AI 봇 (${this.p2.personality.name})`);
+                    this.showOverlay('최종 승부 결정 (2선승 달성)', `${champName} 승리!`, reason, true);
+                } else {
+                    const roundWinnerText = winner ? (winner.isPlayer1 ? 'PLAYER 1 회전 승리!' : (this.is2PMode ? 'PLAYER 2 회전 승리!' : 'AI 봇 회전 승리!')) : '무승부!';
+                    this.showOverlay(`제 ${this.round} 회전 종료`, roundWinnerText, '잠시 후 다음 회전이 시작됩니다...', false);
+                    setTimeout(() => {
+                        if (!this.isMatchOver) {
+                            this.round++;
+                            this.startRound();
+                        }
+                    }, 2400);
+                }
+            }
+
+            showOverlay(subtitle, title, desc, showButtons) {
+                const overlay = document.getElementById('matchOverlay');
+                document.getElementById('overlaySubtitle').textContent = subtitle;
+                document.getElementById('overlayTitle').textContent = title;
+                document.getElementById('overlayDesc').textContent = desc;
+                document.getElementById('rematchBtn').classList.toggle('hidden', !showButtons);
+                document.getElementById('overlayMenuBtn').classList.toggle('hidden', !showButtons);
+                overlay.classList.remove('hidden');
+            }
+
+            updateHUD() {
+                const p1Pct = (this.p1.hp / this.p1.maxHp) * 100;
+                const p2Pct = (this.p2.hp / this.p2.maxHp) * 100;
+
+                document.getElementById('p1HpBar').style.width = `${p1Pct}%`;
+                document.getElementById('p1HpDamageBar').style.width = `calc(${p1Pct}% - 4px)`;
+                document.getElementById('p2HpBar').style.width = `${p2Pct}%`;
+                document.getElementById('p2HpDamageBar').style.width = `calc(${p2Pct}% - 4px)`;
+
+                const p1KiBar = document.getElementById('p1KiBar');
+                const p2KiBar = document.getElementById('p2KiBar');
+                p1KiBar.style.width = `${this.p1.ki}%`;
+                p2KiBar.style.width = `${this.p2.ki}%`;
+                p1KiBar.classList.toggle('ki-max', this.p1.ki >= 100);
+                p2KiBar.classList.toggle('ki-max', this.p2.ki >= 100);
+
+                document.getElementById('p1KiText').textContent = `${this.p1.ki}%`;
+                document.getElementById('p2KiText').textContent = `${this.p2.ki}%`;
+                document.getElementById('timerText').textContent = Math.max(0, this.roundTime);
+
+                // 라운드 승리 구슬 표시
+                const p1Dots = document.getElementById('p1Rounds').children;
+                const p2Dots = document.getElementById('p2Rounds').children;
+                for (let i = 0; i < 2; i++) {
+                    p1Dots[i].className = `w-3 h-3 rounded-full border border-amber-400 ${i < this.p1.roundsWon ? 'bg-amber-400 shadow-[0_0_8px_#fbbf24]' : 'bg-stone-900'}`;
+                    p2Dots[i].className = `w-3 h-3 rounded-full border border-amber-400 ${i < this.p2.roundsWon ? 'bg-amber-400 shadow-[0_0_8px_#fbbf24]' : 'bg-stone-900'}`;
+                }
+            }
+
+            /**
+             * ========================================================================
+             * 6. 캔버스 드로잉 (전통 검도장 & 자세별 애니메이션 캐릭터)
+             * ========================================================================
+             */
+            drawDojoBackground() {
+                const ctx = this.ctx;
+                const w = this.canvas.width;
+                const h = this.canvas.height;
+                const floorY = h - 75;
+
+                // 도장 뒷벽 (따뜻한 한지 & 목재 기둥)
+                const wallGrad = ctx.createLinearGradient(0, 0, 0, floorY);
+                wallGrad.addColorStop(0, '#29221c');
+                wallGrad.addColorStop(1, '#3d3126');
+                ctx.fillStyle = wallGrad;
+                ctx.fillRect(0, 0, w, floorY);
+
+                // 창살 문양 (미닫이 장지문 느낌)
+                ctx.strokeStyle = 'rgba(255, 235, 200, 0.06)';
+                ctx.lineWidth = 2;
+                for (let x = 60; x < w; x += 140) {
+                    ctx.strokeRect(x, 30, 110, floorY - 50);
+                    ctx.beginPath();
+                    ctx.moveTo(x + 55, 30);
+                    ctx.lineTo(x + 55, floorY - 20);
+                    ctx.stroke();
+                }
+
+                // 중앙 족자 (心技體 - 심기체)
+                const scrollW = 74;
+                const scrollH = 175;
+                const scrollX = w / 2 - scrollW / 2;
+                const scrollY = 32;
+                ctx.fillStyle = '#1c1612';
+                ctx.fillRect(scrollX - 6, scrollY - 6, scrollW + 12, scrollH + 12);
+                ctx.fillStyle = '#efe6d5';
+                ctx.fillRect(scrollX, scrollY, scrollW, scrollH);
+                ctx.fillStyle = '#1c1917';
+                ctx.font = '900 32px "Noto Serif KR", serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('心', w / 2, scrollY + 46);
+                ctx.fillText('技', w / 2, scrollY + 98);
+                ctx.fillText('體', w / 2, scrollY + 150);
+
+                // 도장 마룻바닥 (원근감 있는 나무 결)
+                const floorGrad = ctx.createLinearGradient(0, floorY, 0, h);
+                floorGrad.addColorStop(0, '#5c3c24');
+                floorGrad.addColorStop(1, '#382212');
+                ctx.fillStyle = floorGrad;
+                ctx.fillRect(0, floorY, w, h - floorY);
+
+                // 마루 경계선 및 경기장 라인
+                ctx.strokeStyle = '#785032';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(0, floorY);
+                ctx.lineTo(w, floorY);
+                ctx.stroke();
+
+                // 중앙 대련 시작선 (백선)
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(w / 2 - 45, floorY + 25);
+                ctx.lineTo(w / 2 - 45, floorY + 45);
+                ctx.moveTo(w / 2 + 45, floorY + 25);
+                ctx.lineTo(w / 2 + 45, floorY + 45);
+                ctx.stroke();
+            }
+
+            drawFighter(f) {
+                const ctx = this.ctx;
+                const floorY = this.canvas.height - 75;
+                const x = f.x;
+                const dir = f.facing;
+                const bob = f.state === 'idle' || f.state === 'walk' ? Math.sin(f.animFrame * 0.15) * 3 : 0;
+
+                ctx.save();
+                ctx.translate(x, floorY);
+
+                // 바닥 그림자
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+                ctx.beginPath();
+                ctx.ellipse(0, 4, 34, 9, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 피격 시 하얀 점멸 효과
+                if (f.flashTimer > 0 && f.flashTimer % 2 === 0) {
+                    ctx.filter = 'brightness(2.5)';
+                }
+
+                // KO 쓰러짐 처리
+                if (f.state === 'ko') {
+                    ctx.translate(0, -15);
+                    ctx.rotate(-dir * Math.PI / 2.2);
+                }
+
+                // 1. 하카마 (검도 바지 - 남색/검정 전통 주름바지)
+                ctx.fillStyle = '#172033';
+                ctx.beginPath();
+                ctx.moveTo(-22, -65 + bob);
+                ctx.lineTo(22, -65 + bob);
+                const stride = f.state === 'walk' ? Math.sin(f.animFrame * 0.3) * 10 : (f.state === 'dash' ? 14 : 6);
+                ctx.lineTo(26 + stride, 0);
+                ctx.lineTo(-26 - stride, 0);
+                ctx.closePath();
+                ctx.fill();
+
+                // 2. 도 (갑옷 - 몸통 보호구)
+                ctx.fillStyle = f.colorPrimary;
+                ctx.beginPath();
+                ctx.roundRect(-20, -118 + bob, 40, 56, 8);
+                ctx.fill();
+                ctx.strokeStyle = '#fbbf24';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // 가슴 보호대 문양
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(-15, -108 + bob, 30, 38);
+
+                // 3. 멘 (검도 호면 / 헬멧)
+                const headY = -140 + bob;
+                ctx.fillStyle = '#1e293b';
+                ctx.beginPath();
+                ctx.arc(0, headY, 21, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 호면 쇠창살 (멘가네)
+                ctx.strokeStyle = '#cbd5e1';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(dir * 6, headY, 15, -0.8, 0.8);
+                ctx.stroke();
+                for (let gy = -8; gy <= 8; gy += 4) {
+                    ctx.beginPath();
+                    ctx.moveTo(dir * 6, headY + gy);
+                    ctx.lineTo(dir * 20, headY + gy);
+                    ctx.stroke();
+                }
+
+                // 머리띠 (청/홍 구분 리본)
+                ctx.fillStyle = f.colorAccent;
+                ctx.fillRect(-22, headY - 12, 44, 5);
+
+                // 4. 죽도(Shinai) 및 자세별 무기 렌더링
+                ctx.save();
+                ctx.translate(dir * 12, -105 + bob);
+
+                let swordAngle = 0;
+                let swordLen = f.stance.id === 'jodan' ? 92 : (f.stance.id === 'nito' ? 68 : 82);
+
+                if (f.state === 'guard') {
+                    // 방어 자세: 죽도를 수직으로 세워 막기
+                    swordAngle = -dir * 0.25;
+                    ctx.translate(dir * 14, -15);
+                } else if (f.state === 'attack' && f.currentAttack) {
+                    const total = f.currentAttack.startup + f.currentAttack.active + f.currentAttack.recovery;
+                    const progress = (total - f.stateTimer) / total;
+                    if (progress < 0.3) {
+                        // 선딜레이 (크게 치켜들기)
+                        swordAngle = -dir * 1.1;
+                    } else if (progress < 0.65) {
+                        // 베기 활성 프레임 (수평/하단 일섬!)
+                        swordAngle = dir * 1.45;
+                        // 검기 궤적 이펙트
+                        ctx.strokeStyle = f.attackType === 'special' ? 'rgba(251, 191, 36, 0.85)' : 'rgba(255, 255, 255, 0.55)';
+                        ctx.lineWidth = f.attackType === 'special' ? 18 : 10;
+                        ctx.beginPath();
+                        ctx.arc(0, 0, swordLen + 10, dir === 1 ? -1.2 : Math.PI - 0.3, dir === 1 ? 0.3 : Math.PI + 1.2);
+                        ctx.stroke();
+                    } else {
+                        // 후딜레이
+                        swordAngle = dir * 1.1;
+                    }
+                } else {
+                    // 기본 자세별 각도 (중단세 / 상단세 / 이도류)
+                    if (f.stance.id === 'chudan') {
+                        swordAngle = dir * 0.85; // 상대 목/가슴을 겨누는 정안세
+                    } else if (f.stance.id === 'jodan') {
+                        ctx.translate(-dir * 10, -35);
+                        swordAngle = -dir * 0.45; // 머리 위로 높이 치켜든 상단세
+                    } else if (f.stance.id === 'nito') {
+                        swordAngle = dir * 0.75;
+                    }
+                }
+
+                // 주 죽도 그리기
+                ctx.rotate(swordAngle);
+                // 손잡이 (츠카)
+                ctx.fillStyle = '#f8fafc';
+                ctx.fillRect(-4, -18, 8, 18);
+                // 코등이 (츠바)
+                ctx.fillStyle = '#f59e0b';
+                ctx.fillRect(-9, -20, 18, 4);
+                // 대나무 검신
+                ctx.fillStyle = '#eab308';
+                ctx.fillRect(-3, -20 - swordLen, 6, swordLen);
+                ctx.restore();
+
+                // 이도류일 경우 왼손 소태도(짧은 죽도) 추가 렌더링
+                if (f.stance.id === 'nito') {
+                    ctx.save();
+                    ctx.translate(-dir * 8, -98 + bob);
+                    const subAngle = f.state === 'attack' ? dir * 1.3 : dir * 0.4;
+                    ctx.rotate(subAngle);
+                    ctx.fillStyle = '#f8fafc';
+                    ctx.fillRect(-3, -12, 6, 12);
+                    ctx.fillStyle = '#34d399';
+                    ctx.fillRect(-2.5, -56, 5, 44);
+                    ctx.restore();
+                }
+
+                // 5. 말풍선 (AI 전술 대사 / 기합)
+                if (f.speechTimer > 0 && f.speechText) {
+                    ctx.save();
+                    const bubbleY = -182 + bob;
+                    ctx.font = 'bold 12px "Noto Sans KR", sans-serif';
+                    const textW = ctx.measureText(f.speechText).width;
+                    const boxW = textW + 20;
+                    const boxH = 26;
+
+                    ctx.fillStyle = 'rgba(20, 17, 15, 0.9)';
+                    ctx.strokeStyle = f.colorAccent;
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.roundRect(-boxW / 2, bubbleY - boxH, boxW, boxH, 8);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#fef3c7';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(f.speechText, 0, bubbleY - 8);
+                    ctx.restore();
+                }
+
+                ctx.restore();
+            }
+
+            drawEffects() {
+                const ctx = this.ctx;
+
+                // 스파크 파티클
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    const p = this.particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.35;
+                    p.life--;
+                    if (p.life <= 0) {
+                        this.particles.splice(i, 1);
+                        continue;
+                    }
+                    ctx.globalAlpha = p.life / p.maxLife;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+
+                // 플로팅 타격 텍스트 (머리!, 손목!, 방어!, 오의!)
+                for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
+                    const ft = this.floatingTexts[i];
+                    ft.y -= 0.9;
+                    ft.life--;
+                    if (ft.life <= 0) {
+                        this.floatingTexts.splice(i, 1);
+                        continue;
+                    }
+                    ctx.globalAlpha = Math.min(1, ft.life / 20);
+                    ctx.font = `900 ${ft.size}px "Noto Serif KR", serif`;
+                    ctx.textAlign = 'center';
+                    ctx.strokeStyle = '#000000';
+                    ctx.lineWidth = 4;
+                    ctx.strokeText(ft.text, ft.x, ft.y);
+                    ctx.fillStyle = ft.color;
+                    ctx.fillText(ft.text, ft.x, ft.y);
+                }
+                ctx.globalAlpha = 1;
+            }
+
+            loop() {
+                // 역경직(Hitstop) 처리: 타격 순간 짧은 정지로 묵직한 타격감 부여
+                if (this.hitstop > 0) {
+                    this.hitstop--;
+                } else if (!this.isRoundOver) {
+                    this.frameCounter++;
+                    if (this.frameCounter % 60 === 0 && this.roundTime > 0) {
+                        this.roundTime--;
+                    }
+
+                    this.handlePlayerInputs();
+                    this.p1.update(this.p2, this.canvas.width);
+                    this.p2.update(this.p1, this.canvas.width);
+                    this.checkCombatCollisions();
+                    this.checkRoundEnd();
+                    this.updateHUD();
+                }
+
+                // 화면 흔들림 적용 렌더링
+                this.ctx.save();
+                if (this.screenShake > 0) {
+                    const dx = (Math.random() - 0.5) * this.screenShake;
+                    const dy = (Math.random() - 0.5) * this.screenShake;
+                    this.ctx.translate(dx, dy);
+                    this.screenShake *= 0.8;
+                    if (this.screenShake < 0.5) this.screenShake = 0;
+                }
+
+                this.drawDojoBackground();
+                this.drawFighter(this.p1);
+                this.drawFighter(this.p2);
+                this.drawEffects();
+                this.ctx.restore();
+
+                this.gameLoopId = requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        /**
+         * ============================================================================
+         * 7. UI 컨트롤러 및 초기화
+         * ============================================================================
+         */
+        window.onload = function () {
+            const game = new KendoGame();
+
+            // API 패널 토글 및 저장
+            const toggleApiBtn = document.getElementById('toggleApiBtn');
+            const apiConfigPanel = document.getElementById('apiConfigPanel');
+            const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
+            const apiKeyInput = document.getElementById('geminiApiKeyInput');
+            const apiStatusBadge = document.getElementById('apiStatusBadge');
+
+            toggleApiBtn.addEventListener('click', () => {
+                apiConfigPanel.classList.toggle('hidden');
+            });
+
+            saveApiKeyBtn.addEventListener('click', () => {
+                const key = apiKeyInput.value.trim();
+                game.botAI.setApiKey(key);
+                if (key) {
+                    apiStatusBadge.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping';
+                    saveApiKeyBtn.textContent = 'Gemini 연동됨!';
+                } else {
+                    apiStatusBadge.className = 'w-2 h-2 rounded-full bg-emerald-400';
+                    saveApiKeyBtn.textContent = '적용하기';
+                }
+                setTimeout(() => {
+                    apiConfigPanel.classList.add('hidden');
+                    if (key) apiStatusBadge.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
+                }, 600);
+            });
+
+            // 1P vs AI / 2P 로컬 모드 전환
+            const mode1PBtn = document.getElementById('mode1PBtn');
+            const mode2PBtn = document.getElementById('mode2PBtn');
+            const p2Badge = document.getElementById('p2Badge');
+            const p2ControlsHint = document.getElementById('p2ControlsHint');
+
+            mode1PBtn.addEventListener('click', () => {
+                game.is2PMode = false;
+                mode1PBtn.className = 'flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-bold text-sm border-2 border-amber-500 bg-amber-500/20 text-amber-200 shadow-lg transition';
+                mode2PBtn.className = 'flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-bold text-sm border-2 border-stone-700 bg-stone-900 text-stone-400 hover:border-stone-500 transition';
+                p2Badge.textContent = 'AI BOT (홍)';
+                p2ControlsHint.textContent = 'AI 자동 제어 (성격에 따라 전술 변화)';
+            });
+
+            mode2PBtn.addEventListener('click', () => {
+                game.is2PMode = true;
+                mode2PBtn.className = 'flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-bold text-sm border-2 border-red-500 bg-red-500/20 text-red-200 shadow-lg transition';
+                mode1PBtn.className = 'flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-bold text-sm border-2 border-stone-700 bg-stone-900 text-stone-400 hover:border-stone-500 transition';
+                p2Badge.textContent = 'PLAYER 2 (홍)';
+                p2ControlsHint.textContent = '이동: 방향키 | 약: J | 강: K | 방어: L | 오의: I';
+            });
+
+            // 유파(자세) & 성격 선택 버튼 바인딩 헬퍼
+            function bindSelectionGroup(containerId, selectedClass, callback) {
+                const container = document.getElementById(containerId);
+                const buttons = container.querySelectorAll('button');
+                buttons.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        buttons.forEach(b => b.classList.remove(selectedClass));
+                        btn.classList.add(selectedClass);
+                        callback(btn.dataset.stance || btn.dataset.pers);
+                    });
+                });
+            }
+
+            bindSelectionGroup('p1StanceGroup', 'selected-p1', val => game.p1Stance = val);
+            bindSelectionGroup('p1PersonalityGroup', 'selected-p1', val => game.p1Personality = val);
+            bindSelectionGroup('p2StanceGroup', 'selected-p2', val => game.p2Stance = val);
+            bindSelectionGroup('p2PersonalityGroup', 'selected-p2', val => game.p2Personality = val);
+
+            // 화면 전환 버튼
+            const setupScreen = document.getElementById('setupScreen');
+            const gameScreen = document.getElementById('gameScreen');
+            const backToMenuBtn = document.getElementById('backToMenuBtn');
+
+            function openSetupScreen() {
+                setupScreen.classList.remove('hidden');
+                gameScreen.classList.add('hidden');
+                backToMenuBtn.classList.add('hidden');
+                if (game.gameLoopId) cancelAnimationFrame(game.gameLoopId);
+            }
+
+            document.getElementById('startMatchBtn').addEventListener('click', () => {
+                setupScreen.classList.add('hidden');
+                gameScreen.classList.remove('hidden');
+                backToMenuBtn.classList.remove('hidden');
+                game.startMatch();
+            });
+
+            backToMenuBtn.addEventListener('click', openSetupScreen);
+            document.getElementById('overlayMenuBtn').addEventListener('click', openSetupScreen);
+            document.getElementById('rematchBtn').addEventListener('click', () => game.startMatch());
+        };
+    </script>
+</body>
+</html>
